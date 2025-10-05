@@ -10,14 +10,19 @@ def Read_File():
         print("File not found!")
     return File
 
-def Clean_File(File):
+def Clean_File(File = Read_File()):
     error_cols = [col for col in File.columns if '_err' in col]
-    File = File.drop(columns = ['kepid', 'kepoi_name', 'kepler_name', 'koi_pdisposition', 'koi_score'] + error_cols, errors = 'ignore')
+    File = File.drop(columns = ['kepid', 'kepler_name', 'koi_pdisposition', 'koi_score'] + error_cols, errors = 'ignore')
     File = File.replace("CANDIDATE", np.nan)
     File = File.dropna()
 
+    File.insert(0, 'kepoi_name', File.pop('kepoi_name'))
+    File.insert(0, 'koi_disposition', File.pop('koi_disposition'))
+
     File = File.replace("CONFIRMED", 1)
     File = File.replace("FALSE POSITIVE", 0)
+
+
     
     return File
 
