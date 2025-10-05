@@ -34,3 +34,10 @@ def Create_Model():
     print(f'Mean Squared Error: {mse}')
     print(f'Accuracy: {accuracy}')
     return model
+
+model = Create_Model()
+
+Inp_File = pd.read_csv('Temp_Data/Temp_inp.csv')
+Inp_File = Inp_File.drop(columns=['koi_tce_delivname', 'kepoi_name'], errors = 'ignore')
+output = model.predict(Inp_File)
+print(output)
