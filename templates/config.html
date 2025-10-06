@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Configure Models | ExoDetect</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root{--bg:#0a0f18;--text:#eef2f7;--muted:#c6d0e1;--accent:#77e1ff;--warn:#ffc107;--radius-xl:28px;--radius-pill:9999px;--shadow-soft:0 10px 40px rgba(0,0,0,0.35);--maxw:1040px}
+        *{box-sizing:border-box}
+        html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;scroll-behavior:smooth}
+        body{background-color:#0a0f18;background-image:url("{{ url_for('static', filename='Sky-Background.jpeg') }}");background-size: cover; background-repeat: no-repeat; background-attachment:fixed;}
+        .main-nav{position:relative;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:18px clamp(16px, 4vw, 40px);background:rgba(10,15,24,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+        .nav-brand{font-family:'Playfair Display',serif;font-weight:700;font-size:22px;text-decoration:none;color:var(--text)}
+        .nav-links{display:flex;gap:24px;flex-wrap: wrap;}
+        .nav-links a{text-decoration:none;color:var(--muted);font-weight:500;transition:color .2s ease}
+        .nav-links a:hover{color:var(--accent)}
+        .section{padding:clamp(32px, 6vw, 80px) 16px;display:grid;place-items:center;}
+        .card{position:relative;z-index:1;width:min(92vw, var(--maxw));background:rgba(14, 18, 28, 0.62);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-xl);box-shadow:var(--shadow-soft);padding:clamp(20px, 4vw, 36px);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+        .card h2{font-family:'Playfair Display',serif;font-size:clamp(24px, 3.6vw, 36px);margin:0 0 8px 0;}
+        .card p{margin:0 0 18px 0;color:var(--muted); line-height: 1.6;}
+        .stats-grid{margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;text-align:center}
+        .stats-grid > div{padding:16px;background:rgba(255,255,255,0.05);border-radius:12px}
+        .stats-grid h4{margin:0 0 4px 0;color:var(--muted);font-weight:500;}
+        .stats-grid .stat{font-size:1.8rem;font-weight:700;margin:0;color:var(--accent); font-family: 'Playfair Display', serif;}
+        .hyper-grid{display:grid;grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px;margin-top:24px;}
+        .hyper-grid label{font-weight: 500; margin-bottom: 8px; display: block;}
+        .hyper-grid input[type="range"]{width:100%;}
+        .hyper-grid .value-display{font-weight: 600; color: var(--accent); margin-left: 8px;}
+        .select{padding:14px 18px;border-radius:var(--radius-pill);border:1px solid rgba(255,255,255,0.32);background-color:rgba(8,14,22,0.94);color:#fff;font-weight:700;}
+        .btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;cursor:pointer;padding:14px 22px;border:1px solid rgba(255,255,255,0.20);color:#fff;border-radius:var(--radius-pill);}
+        .btn-accent{background:linear-gradient(180deg, rgba(119,225,255,0.88), rgba(119,225,255,0.48));border-color:rgba(119,225,255,0.65);}
+        .result-panel{margin-top:24px;padding:20px;border-radius:12px;border:1px solid;text-align:left;}
+        .result-panel h4{margin:0 0 8px 0;font-size:20px;font-family:'Playfair Display',serif}
+        .result-true{border-color:#2ac8a0;background:rgba(42,200,160,0.1)}
+        .result-false{border-color:#ff6b6b;background:rgba(255,107,107,0.1)}
+        .hidden{display:none !important}
+    </style>
+</head>
+<body>
+
+<nav class="main-nav">
+    <a href="/" class="nav-brand">ExoDetect</a>
+    <div class="nav-links">
+        <a href="/#console">Console</a>
+        <a href="/#data">Workspace</a>
+        <a href="/config">Configure & Performance</a>
+        <a href="/#archive">Archive</a>
+        <a href="/#science">How It Works</a>
+    </div>
+</nav>
+
+<main>
+    <section class="section" id="performance">
+        <div class="card">
+            <h2>Model Performance</h2>
+            <p>Live accuracy scores for our trained models, based on their performance against a withheld test portion of the mission datasets.</p>
+            <div class="stats-grid">
+                <div><h4>Kepler</h4><p class="stat" id="kepler-accuracy">{{ accuracies.kepler or 'N/A' }}%</p></div>
+                <div><h4>TESS</h4><p class="stat" id="tess-accuracy">{{ accuracies.tess or 'N/A' }}%</p></div>
+                <div><h4>K2</h4><p class="stat" id="k2-accuracy">{{ accuracies.k2 or 'N/A' }}%</p></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="retrain">
+        <div class="card">
+            <h2>Model Tuning & Retraining</h2>
+            <p>Adjust the model's hyperparameters and retrain it on the mission dataset. This will overwrite the current active model. A higher accuracy is better.</p>
+            <div class="hyper-grid">
+                <div>
+                    <label>Select Mission to Retrain:</label>
+                    <select id="retrain-mission" class="select">
+                        <option value="kepler">Kepler</option>
+                        <option value="tess">TESS</option>
+                        <option value="k2">K2</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Number of Estimators: <span id="n_estimators_val" class="value-display">100</span></label>
+                    <input type="range" id="n_estimators" min="50" max="300" value="100" step="10">
+                </div>
+                <div>
+                    <label>Max Depth: <span id="max_depth_val" class="value-display">3</span></label>
+                    <input type="range" id="max_depth" min="2" max="10" value="3" step="1">
+                </div>
+                <div>
+                    <label>Test Data Size: <span id="test_size_val" class="value-display">20%</span></label>
+                    <input type="range" id="test_size" min="0.1" max="0.5" value="0.2" step="0.05">
+                </div>
+            </div>
+            <button id="retrain-btn" class="btn btn-accent" style="margin-top: 24px;">Start Retraining</button>
+            <div id="retrain-result" class="result-panel hidden"></div>
+        </div>
+    </section>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const retrainBtn = document.getElementById('retrain-btn');
+    const retrainResult = document.getElementById('retrain-result');
+    const nEstimatorsSlider = document.getElementById('n_estimators');
+    const maxDepthSlider = document.getElementById('max_depth');
+    const testSizeSlider = document.getElementById('test_size');
+
+    nEstimatorsSlider.addEventListener('input', () => document.getElementById('n_estimators_val').textContent = nEstimatorsSlider.value);
+    maxDepthSlider.addEventListener('input', () => document.getElementById('max_depth_val').textContent = maxDepthSlider.value);
+    testSizeSlider.addEventListener('input', () => document.getElementById('test_size_val').textContent = `${Math.round(testSizeSlider.value * 100)}%`);
+
+    retrainBtn.addEventListener('click', () => {
+        retrainResult.classList.remove('hidden', 'result-true', 'result-false');
+        retrainResult.innerHTML = `<p>Retraining in progress... This may take a moment.</p>`;
+        retrainBtn.disabled = true;
+        retrainBtn.textContent = 'Retraining...';
+        
+        const params = {
+            mission: document.getElementById('retrain-mission').value,
+            n_estimators: nEstimatorsSlider.value,
+            max_depth: maxDepthSlider.value,
+            test_size: testSizeSlider.value
+        };
+
+        fetch('/retrain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                retrainResult.classList.add('result-false');
+                retrainResult.innerHTML = `<h4>Error</h4><p>${data.error}</p>`;
+            } else {
+                retrainResult.classList.add('result-true');
+                retrainResult.innerHTML = `<h4>Retraining Complete!</h4><p>${data.message}</p><p><strong>New Model Accuracy: ${data.new_accuracy}%</strong></p>`;
+                const accuracyEl = document.getElementById(`${params.mission}-accuracy`);
+                if(accuracyEl) accuracyEl.textContent = `${data.new_accuracy}%`;
+            }
+        })
+        .catch(err => {
+            retrainResult.classList.add('result-false');
+            retrainResult.innerHTML = `<h4>Network Error</h4><p>Could not complete retraining.</p>`;
+        })
+        .finally(() => {
+            retrainBtn.disabled = false;
+            retrainBtn.textContent = 'Start Retraining';
+        });
+    });
+});
+</script>
+
+</body>
+</html>
