@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, jsonify
 import joblib
 import pandas as pd
 import os
+import aimodel
 
 app = Flask(__name__)
 
@@ -34,7 +35,7 @@ except FileNotFoundError:
     uncleaned_df = None
     name_col = None
     id_col = None
-    print("WARNING: 'Data/Keplers_Uncleaned.csv' not found. Archive search will be disabled.")
+    print("WARNING: 'Data/Kepler_Uncleaned.csv' not found. Archive search will be disabled.")
 
 # --- Define Website Routes ---
 
@@ -46,13 +47,24 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     """Receives form data, processes it, and returns a prediction."""
-    if model is None:
-        return jsonify({'error': 'Model is not available.'}), 500
+    global model, training_columns # Ensure we can update the global model instance
+    # --- Re-load the model in case it was retrained ---
+    try:
+        model = joblib.load('kepler_model.pkl')
+        training_columns = joblib.load('training_columns.pkl')
+    except FileNotFoundError:
+        return jsonify({'error': 'Model files not found. Please ensure the model is trained.'}), 500
 
     try:
         form_data = request.form.to_dict()
         input_df = pd.DataFrame([form_data])
         input_df = input_df.apply(pd.to_numeric, errors='coerce').fillna(0)
+        
+        # Ensure all training columns are present, adding missing ones with a value of 0
+        for col in training_columns:
+            if col not in input_df.columns:
+                input_df[col] = 0
+        
         input_df_reordered = input_df[training_columns]
 
         prediction = model.predict(input_df_reordered)
@@ -74,6 +86,30 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@app.route('/retrain', methods=['POST'])
+def retrain():
+    """ Retrains the model with new hyperparameters. """
+    try:
+        data = request.json
+        n_estimators = int(data.get('n_estimators', 100))
+        max_depth = int(data.get('max_depth', 20)) if data.get('max_depth') else None
+        test_size = float(data.get('test_size', 0.2))
+
+        print(f"Retraining model with params: n_estimators={n_estimators}, max_depth={max_depth}, test_size={test_size}")
+
+        accuracy = aimodel.retrain_model_with_params(n_estimators=n_estimators, max_depth=max_depth, test_size=test_size)
+        
+        # After retraining, we need to reload the model for subsequent predictions
+        global model, training_columns
+        model = joblib.load('kepler_model.pkl')
+        training_columns = joblib.load('training_columns.pkl')
+
+        return jsonify({'message': 'Model retrained successfully!', 'new_accuracy': round(accuracy * 100, 3)})
+
+    except Exception as e:
+        print(f"Retraining Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/search_archive', methods=['POST'])
 def search_archive():
     """Searches the uncleaned CSV for a given ID or name."""
@@ -90,11 +126,13 @@ def search_archive():
         if name_col:
             search_conditions.append(uncleaned_df[name_col].str.contains(search_query, case=False, na=False))
         if id_col:
+            # Ensure the ID column is treated as a string for searching
             search_conditions.append(uncleaned_df[id_col].astype(str).str.contains(search_query, case=False, na=False))
         
         if not search_conditions:
              return jsonify({'error': 'No searchable columns (like kepid or kepoi_name) found in the CSV.'}), 500
 
+        # Combine conditions with an OR operation
         combined_conditions = pd.Series(False, index=uncleaned_df.index)
         for condition in search_conditions:
             combined_conditions |= condition
@@ -114,3 +152,4 @@ def search_archive():
 # --- Run the App ---
 if __name__ == '__main__':
     app.run(debug=True)
+
